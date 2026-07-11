@@ -19,7 +19,7 @@
         .photo-card.selected .selected-overlay { opacity: 1; }
         .photo-card.selected img { transform: scale(0.95); border-radius: 0.5rem; }
     </style>
-    <!-- Tambahkan library database Supabase di sini -->
+    <!-- Library database Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="pengaturan.js"></script>
 </head>
@@ -41,7 +41,7 @@
 
     <main id="clientView" class="max-w-6xl mx-auto px-4 py-8 flex-grow w-full">
         
-        <!-- INFORMASI DETAIL KLIEN (Muncul otomatis jika buka dari link khusus) -->
+        <!-- INFORMASI DETAIL KLIEN -->
         <div id="clientInfoSection" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
                 <p class="text-xs text-slate-400 font-bold uppercase">Nama Klien</p>
@@ -61,7 +61,7 @@
             </div>
         </div>
 
-        <!-- INPUT MANUAL FOLDER DRIVE (Hanya muncul jika diakses tanpa slug/link khusus) -->
+        <!-- INPUT MANUAL FOLDER DRIVE -->
         <div id="inputSection" class="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 mb-8 max-w-2xl mx-auto text-center relative overflow-hidden">
             <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-slate-200 via-slate-800 to-slate-200"></div>
             
@@ -95,9 +95,15 @@
                     <h3 class="font-bold text-xl text-slate-800">Koleksi Foto</h3>
                     <p class="text-sm text-slate-500">Klik foto untuk memilih. Klik <i class="fa-solid fa-magnifying-glass mx-1"></i> untuk memperbesar.</p>
                 </div>
-                <button id="btnSelectAll" onclick="selectAll()" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-lg font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-check-double"></i> Pilih Semua (Hal Ini)
-                </button>
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <!-- TOMBOL DOWNLOAD ALL FILE MASTER -->
+                    <a id="btnDownloadAll" target="_blank" class="text-sm bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-bold transition flex items-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> Download Semua Foto
+                    </a>
+                    <button id="btnSelectAll" onclick="selectAll()" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-lg font-medium transition flex items-center gap-2">
+                        <i class="fa-solid fa-check-double"></i> Pilih Semua
+                    </button>
+                </div>
             </div>
             
             <div id="photoGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 mb-8"></div>
@@ -162,7 +168,6 @@
         let appState = { photos: [], selectedIds: new Set(), currentPage: 1, limit: 0, clientData: null };
         let supabaseClient;
 
-        // Inisialisasi Aplikasi & Cek URL Database Otomatis
         document.addEventListener("DOMContentLoaded", async () => {
             if (typeof CONFIG_APP !== 'undefined') {
                 const vendorName = CONFIG_APP.namaVendor || 'Studio Foto';
@@ -171,14 +176,12 @@
                 document.getElementById('footerVendorName').textContent = vendorName;
                 document.getElementById('pageTitle').textContent = `Client Portal - ${vendorName}`;
 
-                // Konek ke database Supabase
                 supabaseClient = supabase.createClient(CONFIG_APP.supabaseUrl, CONFIG_APP.supabaseKey);
             } else {
                 showAlert('File pengaturan.js tidak ditemukan atau salah format.', 'error');
                 return;
             }
 
-            // Membaca isi URL path setelah tanda '/' (misal: /amalia-umy)
             const path = window.location.pathname.substring(1); 
             
             if (path && path !== 'index.html' && path !== 'admin' && path !== 'admin.html') {
@@ -187,14 +190,12 @@
                 document.getElementById('loadingText').textContent = "Mencari data gallery client...";
 
                 try {
-                    // Cari data klien di tabel Supabase berdasarkan data slug-nya
                     const { data, error } = await supabaseClient.from('clients').select('*').eq('slug', path).single();
 
                     if (data && !error) {
                         appState.limit = parseInt(data.limit_foto) || 0;
                         appState.clientData = data;
 
-                        // Tampilkan box informasi klien
                         const infoSec = document.getElementById('clientInfoSection');
                         infoSec.classList.remove('hidden');
                         document.getElementById('infoNama').textContent = data.nama;
@@ -204,10 +205,13 @@
                         
                         if(appState.limit > 0) {
                             document.getElementById('actionLimitText').textContent = `/ ${appState.limit}`;
-                            document.getElementById('btnSelectAll').classList.add('hidden'); // Sembunyikan pilih semua jika ada limit
+                            document.getElementById('btnSelectAll').classList.add('hidden');
                         }
 
-                        // Jalankan pemuatan gambar drive otomatis
+                        // Pasang link Google Drive ke tombol download all file otomatis
+                        const btnDownloadAll = document.getElementById('btnDownloadAll');
+                        if (btnDownloadAll) btnDownloadAll.href = data.drive_link;
+
                         loadPhotos(data.drive_link);
                     } else {
                         showLoading(false);
@@ -219,6 +223,10 @@
                     document.getElementById('inputSection').classList.remove('hidden');
                     showAlert('Gagal menghubungi database.', 'error');
                 }
+            } else {
+                // Sembunyikan tombol download master jika dibuka tanpa rute/manual slug
+                const btnDownloadAll = document.getElementById('btnDownloadAll');
+                if (btnDownloadAll) btnDownloadAll.classList.add('hidden');
             }
         });
 
@@ -385,7 +393,6 @@
                 appState.selectedIds.delete(id); 
                 if(cardElement) cardElement.classList.remove('selected', 'border-slate-900');
             } else {
-                // Validasi Cek Kuota Batas Foto Terpilih
                 if(appState.limit > 0 && appState.selectedIds.size >= appState.limit) {
                     return showAlert(`Batas maksimal pemilihan hanya ${appState.limit} foto!`, 'error');
                 }
@@ -396,7 +403,7 @@
         }
 
         function selectAll() {
-            if(appState.limit > 0) return; // Kunci fungsi jika ada batasan kuota klien
+            if(appState.limit > 0) return; 
             const startIndex = (appState.currentPage - 1) * ITEMS_PER_PAGE;
             const endIndex = startIndex + ITEMS_PER_PAGE;
             const currentPhotos = appState.photos.slice(startIndex, endIndex);
