@@ -423,40 +423,56 @@
             else { bar.classList.add('translate-y-full'); }
         }
 
-        function copyToClipboard() {
-    if (appState.selectedIds.size === 0) return;
-    
-    // Menghapus ekstensi file (seperti .JPG, .JPEG, .PNG)
-    const selectedNames = appState.photos
-        .filter(p => appState.selectedIds.has(p.id))
-        .map(p => p.name.replace(/\.[^/.]+$/, ""));
+        // ========================================================
+        // COPY TO CLIPBOARD + AUTO UPDATE SUPABASE TRACKER
+        // ========================================================
+        async function copyToClipboard() {
+            if (appState.selectedIds.size === 0) return;
+            
+            // Menghapus ekstensi file (seperti .JPG, .JPEG, .PNG)
+            const selectedNames = appState.photos
+                .filter(p => appState.selectedIds.has(p.id))
+                .map(p => p.name.replace(/\.[^/.]+$/, ""));
 
-    const vendor = (typeof CONFIG_APP !== 'undefined') ? CONFIG_APP.namaVendor : 'Studio';
-    
-    let detailKlienText = '';
-    if(appState.clientData) {
-        detailKlienText = `Klien: ${appState.clientData.nama}\nUniv: ${appState.clientData.univ}\nTanggal: ${appState.clientData.tanggal}\n`;
-    }
+            const vendor = (typeof CONFIG_APP !== 'undefined') ? CONFIG_APP.namaVendor : 'Studio';
+            
+            let detailKlienText = '';
+            if(appState.clientData) {
+                detailKlienText = `Klien: ${appState.clientData.nama}\nUniv: ${appState.clientData.univ}\nTanggal: ${appState.clientData.tanggal}\n`;
+            }
 
-    const textToCopy = `*List Foto Pilihan Client*\nLayanan: ${vendor}\n${detailKlienText}Total: ${selectedNames.length} Foto\n\n${selectedNames.join('\n')}\n\n_Mohon segera diproses tim admin/project manager, terima kasih!_`;
-    
-    const textArea = document.createElement("textarea");
-    textArea.value = textToCopy; 
-    textArea.style.position = "fixed"; 
-    textArea.style.top = "-9999px"; 
-    textArea.style.left = "-9999px";
-    document.body.appendChild(textArea); 
-    textArea.focus(); 
-    textArea.select();
-    
-    try {
-        if (document.execCommand('copy')) showAlert('List foto berhasil disalin! Silahkan tempel di chat WhatsApp.', 'success');
-        else showAlert('Gagal menyalin.', 'error');
-    } catch (err) { 
-        showAlert('Perangkat Anda tidak mendukung salin otomatis.', 'error'); 
-    }
-    document.body.removeChild(textArea);
-}
+            const textToCopy = `*List Foto Pilihan Client*\nLayanan: ${vendor}\n${detailKlienText}Total: ${selectedNames.length} Foto\n\n${selectedNames.join('\n')}\n\n_Mohon segera diproses tim admin/project manager, terima kasih!_`;
+            
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy; 
+            textArea.style.position = "fixed"; 
+            textArea.style.top = "-9999px"; 
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea); 
+            textArea.focus(); 
+            textArea.select();
+            
+            try {
+                if (document.execCommand('copy')) showAlert('List foto berhasil disalin! Silahkan tempel di chat WhatsApp.', 'success');
+                else showAlert('Gagal menyalin.', 'error');
+            } catch (err) { 
+                showAlert('Perangkat Anda tidak mendukung salin otomatis.', 'error'); 
+            }
+            document.body.removeChild(textArea);
+
+            // Trigger otomatis ke database Supabase
+            if (supabaseClient && appState.clientData && appState.clientData.slug) {
+                try {
+                    await supabaseClient.from('clients').update({
+                        status_selection: 'submitted',
+                        submitted_at: new Date().toISOString(),
+                        selected_photos: selectedNames.join(', ')
+                    }).eq('slug', appState.clientData.slug);
+                } catch (dbErr) {
+                    console.error("Gagal sinkron status seleksi ke Supabase:", dbErr);
+                }
+            }
+        }
 
         let currentPreviewId = null;
 
@@ -475,7 +491,6 @@
             
             updateLightboxSelectBtn();
 
-            // Pasang link download satuan otomatis ke tombol download lightbox
             const downloadBtn = document.getElementById('lightboxDownloadBtn');
             if (downloadBtn) {
                 downloadBtn.href = `https://drive.google.com/uc?export=download&id=${photo.id}`;
