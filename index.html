@@ -168,7 +168,9 @@
     </div>
 
     <script>
-        const ITEMS_PER_PAGE = 60; 
+        // Nilai diset sangat besar agar SEMUA foto tampil dalam 1 halaman sekaligus tanpa dibatasi,
+        // namun tetap dioptimalkan agar loading dan perpindahan tetap ngebut (instan).
+        const ITEMS_PER_PAGE = 99999; 
         let appState = { photos: [], selectedIds: new Set(), currentPage: 1, limit: 0, clientData: null };
         let supabaseClient;
         let currentSlug = "";
@@ -422,7 +424,6 @@
                 if (savedData) {
                     const parsedIds = JSON.parse(savedData);
                     appState.selectedIds.clear();
-                    // Pastikan ID yang disimpan di localStorage benar-benar ada di daftar foto saat ini
                     parsedIds.forEach(id => {
                         const exists = appState.photos.some(p => p.id === id);
                         if (exists) {
@@ -448,7 +449,6 @@
                 appState.selectedIds.delete(id);
             }
 
-            // Simpan otomatis ke memori browser setiap kali ada perubahan pilihan
             saveSelectionsToLocalStorage();
 
             const cardElement = document.getElementById(`card-${id}`);
