@@ -168,9 +168,10 @@
     </div>
 
     <script>
-        const ITEMS_PER_PAGE = 60; // Halaman optimal agar DOM ringan, total semua foto tetap dimuat utuh!
+        const ITEMS_PER_PAGE = 60; 
         let appState = { photos: [], selectedIds: new Set(), currentPage: 1, limit: 0, clientData: null };
         let supabaseClient;
+        let currentSlug = "";
 
         document.addEventListener("DOMContentLoaded", async () => {
             if (typeof CONFIG_APP !== 'undefined') {
@@ -186,15 +187,15 @@
                 return;
             }
 
-            const path = window.location.pathname.substring(1); 
+            currentSlug = window.location.pathname.substring(1); 
             
-            if (path && path !== 'index.html' && path !== 'admin' && path !== 'admin.html') {
+            if (currentSlug && currentSlug !== 'index.html' && currentSlug !== 'admin' && currentSlug !== 'admin.html') {
                 document.getElementById('inputSection').classList.add('hidden');
                 showLoading(true);
                 document.getElementById('loadingText').textContent = "Mencari data gallery client...";
 
                 try {
-                    const { data, error } = await supabaseClient.from('clients').select('*').eq('slug', path).single();
+                    const { data, error } = await supabaseClient.from('clients').select('*').eq('slug', currentSlug).single();
 
                     if (data && !error) {
                         appState.limit = parseInt(data.limit_foto) || 0;
@@ -285,7 +286,10 @@
                         let hdThumb = file.thumbnailLink ? file.thumbnailLink.replace('=s220', '=s600') : '';
                         return { id: file.id, name: file.name, url: hdThumb };
                     });
-                    appState.selectedIds.clear();
+
+                    // Muat pilihan yang sebelumnya tersimpan di localStorage browser klien
+                    loadSavedSelections();
+
                     renderGallery();
                     showAlert(`${appState.photos.length} foto siap dipilih!`, 'success');
                 } else {
@@ -315,7 +319,6 @@
             const endIndex = startIndex + ITEMS_PER_PAGE;
             const photosToShow = appState.photos.slice(startIndex, endIndex);
 
-            // Menggunakan DocumentFragment agar DOM rendering menjadi instan
             const fragment = document.createDocumentFragment();
 
             photosToShow.forEach((photo) => {
@@ -401,7 +404,38 @@
             document.getElementById('galleryContainer').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Optimasi: Update DOM card spesifik saja tanpa merender ulang seluruh halaman galeri
+        // ========================================================
+        // FITUR LOCALSTORAGE: SIMPAN & MUAT PILIHAN OTOMATIS
+        // ========================================================
+        const STORAGE_KEY_PREFIX = "vividlens_selected_";
+
+        function saveSelectionsToLocalStorage() {
+            if (!currentSlug) return;
+            const idsArray = Array.from(appState.selectedIds);
+            localStorage.setItem(STORAGE_KEY_PREFIX + currentSlug, JSON.stringify(idsArray));
+        }
+
+        function loadSavedSelections() {
+            if (!currentSlug) return;
+            try {
+                const savedData = localStorage.getItem(STORAGE_KEY_PREFIX + currentSlug);
+                if (savedData) {
+                    const parsedIds = JSON.parse(savedData);
+                    appState.selectedIds.clear();
+                    // Pastikan ID yang disimpan di localStorage benar-benar ada di daftar foto saat ini
+                    parsedIds.forEach(id => {
+                        const exists = appState.photos.some(p => p.id === id);
+                        if (exists) {
+                            appState.selectedIds.add(id);
+                        }
+                    });
+                    updateActionBar();
+                }
+            } catch (e) {
+                console.error("Gagal membaca data tersimpan dari browser:", e);
+            }
+        }
+
         function toggleSelect(id) {
             const isSelected = appState.selectedIds.has(id);
             
@@ -414,7 +448,9 @@
                 appState.selectedIds.delete(id);
             }
 
-            // Update UI card di galeri jika sedang tampil di halaman aktif
+            // Simpan otomatis ke memori browser setiap kali ada perubahan pilihan
+            saveSelectionsToLocalStorage();
+
             const cardElement = document.getElementById(`card-${id}`);
             if (cardElement) {
                 if (appState.selectedIds.has(id)) {
@@ -442,6 +478,8 @@
             } else { 
                 currentPhotos.forEach(p => appState.selectedIds.add(p.id)); 
             }
+            
+            saveSelectionsToLocalStorage();
             renderGallery(); 
             updateActionBar();
         }
@@ -570,7 +608,6 @@
             }
         }
         
-        // Event Listener Keyboard Global (Escape, Panah Kiri/Kanan, dan Spasi untuk Lightbox)
         document.addEventListener('keydown', (e) => {
             const lightboxModal = document.getElementById('lightboxModal');
             const isLightboxOpen = !lightboxModal.classList.contains('hidden');
