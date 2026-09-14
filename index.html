@@ -550,9 +550,22 @@
             }
         }
         
+        // Event Listener Keyboard Global (Escape, Panah Kiri/Kanan, dan Spasi untuk Lightbox)
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !document.getElementById('lightboxModal').classList.contains('hidden')) {
-                closeLightbox();
+            const lightboxModal = document.getElementById('lightboxModal');
+            const isLightboxOpen = !lightboxModal.classList.contains('hidden');
+
+            if (isLightboxOpen) {
+                if (e.key === 'ArrowLeft') {
+                    changeLightboxImage(-1);
+                } else if (e.key === 'ArrowRight') {
+                    changeLightboxImage(1);
+                } else if (e.key === ' ' || e.code === 'Space') {
+                    e.preventDefault(); // Mencegah layar ikut scroll ke bawah saat spasi ditekan
+                    toggleLightboxSelect();
+                } else if (e.key === 'Escape') {
+                    closeLightbox();
+                }
             }
         });
     </script>
