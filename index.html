@@ -168,8 +168,6 @@
     </div>
 
     <script>
-        // Nilai diset sangat besar agar SEMUA foto tampil dalam 1 halaman sekaligus tanpa dibatasi,
-        // namun tetap dioptimalkan agar loading dan perpindahan tetap ngebut (instan).
         const ITEMS_PER_PAGE = 99999; 
         let appState = { photos: [], selectedIds: new Set(), currentPage: 1, limit: 0, clientData: null };
         let supabaseClient;
@@ -258,26 +256,54 @@
             loadPhotos(link);
         }
 
+        // FUNGSI BARU: Otomatis mendeteksi dan masuk ke dalam folder "Original File"
+        async function getTargetFolderId(parentFolderId) {
+            try {
+                const query = encodeURIComponent(`'${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+                let apiUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&key=${CONFIG_APP.googleApiKey}`;
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                if (data.files && data.files.length > 0) {
+                    // Cari apakah ada subfolder bernama "Original File"
+                    const originalFolder = data.files.find(f => f.name.toLowerCase() === 'original file');
+                    if (originalFolder) {
+                        return originalFolder.id; // Masuk ke dalam folder Original File
+                    }
+                }
+            } catch (e) {
+                console.error("Gagal mendeteksi subfolder:", e);
+            }
+            return parentFolderId; // Jika tidak ada subfolder, gunakan folder utama
+        }
+
         async function loadPhotos(link) {
-            const folderId = extractFolderId(link);
-            if (!folderId) return showAlert('Link tidak valid. Pastikan formatnya benar.', 'error');
+            const rawFolderId = extractFolderId(link);
+            if (!rawFolderId) return showAlert('Link tidak valid. Pastikan formatnya benar.', 'error');
 
             showLoading(true);
             appState.currentPage = 1; 
             
             try {
+                // Cek dan arahkan otomatis ke folder "Original File" jika ada di dalamnya
+                const folderId = await getTargetFolderId(rawFolderId);
+
                 let fetchedFiles = []; let nextPageToken = "";
                 const query = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
                 
                 do {
-                    let apiUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=nextPageToken,files(id,name,thumbnailLink)&key=${CONFIG_APP.googleApiKey}&pageSize=1000`;
+                    let apiUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType)&key=${CONFIG_APP.googleApiKey}&pageSize=1000`;
                     if (nextPageToken) apiUrl += `&pageToken=${nextPageToken}`;
                     
                     const response = await fetch(apiUrl);
                     const data = await response.json();
                     
                     if (data.error) throw new Error(data.error.message);
-                    if (data.files && data.files.length > 0) fetchedFiles = fetchedFiles.concat(data.files);
+                    if (data.files && data.files.length > 0) {
+                        // Filter hanya mengambil file gambar (mengabaikan folder lain jika ada)
+                        const imageFiles = data.files.filter(f => f.mimeType && f.mimeType.startsWith('image/'));
+                        fetchedFiles = fetchedFiles.concat(imageFiles);
+                    }
                     
                     nextPageToken = data.nextPageToken;
                     if (nextPageToken) document.getElementById('loadingText').textContent = `Menarik foto... (${fetchedFiles.length} dimuat)`;
@@ -289,9 +315,7 @@
                         return { id: file.id, name: file.name, url: hdThumb };
                     });
 
-                    // Muat pilihan yang sebelumnya tersimpan di localStorage browser klien
                     loadSavedSelections();
-
                     renderGallery();
                     showAlert(`${appState.photos.length} foto siap dipilih!`, 'success');
                 } else {
@@ -406,9 +430,6 @@
             document.getElementById('galleryContainer').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // ========================================================
-        // FITUR LOCALSTORAGE: SIMPAN & MUAT PILIHAN OTOMATIS
-        // ========================================================
         const STORAGE_KEY_PREFIX = "vividlens_selected_";
 
         function saveSelectionsToLocalStorage() {
@@ -492,9 +513,6 @@
             else { bar.classList.add('translate-y-full'); }
         }
 
-        // ========================================================
-        // COPY TO CLIPBOARD + AUTO UPDATE SUPABASE TRACKER
-        // ========================================================
         async function copyToClipboard() {
             if (appState.selectedIds.size === 0) return;
             
