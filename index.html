@@ -18,11 +18,6 @@
         .selected-overlay { opacity: 0; transition: opacity 0.1s ease; }
         .photo-card.selected .selected-overlay { opacity: 1; }
         .photo-card.selected img { transform: scale(0.95); border-radius: 0.5rem; }
-        
-        /* Tambahan untuk memperbaiki orientasi foto yang miring (EXIF rotation) */
-        .photo-card img {
-            image-orientation: from-image;
-        }
     </style>
     <!-- Library database Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -312,7 +307,8 @@
 
                 if (fetchedFiles.length > 0) {
                     appState.photos = fetchedFiles.map(file => {
-                        let hdThumb = file.thumbnailLink ? file.thumbnailLink.replace('=s220', '=s600') : '';
+                        // Mengganti ukuran thumbnail dan memaksa server Google Drive merender ulang orientasi EXIF yang benar
+                        let hdThumb = file.thumbnailLink ? file.thumbnailLink.replace(/=s\d+/, '=s800') : '';
                         return { id: file.id, name: file.name, url: hdThumb };
                     });
 
@@ -572,7 +568,7 @@
             const img = document.getElementById('lightboxImg');
             const title = document.getElementById('lightboxTitle');
             
-            img.src = photo.url.replace('=s600', '=s1600'); 
+            img.src = photo.url.replace('=s800', '=s1600'); 
             title.textContent = `Foto ${index + 1} dari ${appState.photos.length} - ${photo.name}`;
             
             updateLightboxSelectBtn();
