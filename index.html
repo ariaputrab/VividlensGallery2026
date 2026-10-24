@@ -18,6 +18,11 @@
         .selected-overlay { opacity: 0; transition: opacity 0.1s ease; }
         .photo-card.selected .selected-overlay { opacity: 1; }
         .photo-card.selected img { transform: scale(0.95); border-radius: 0.5rem; }
+        
+        /* Tambahan untuk memperbaiki orientasi foto yang miring (EXIF rotation) */
+        .photo-card img {
+            image-orientation: from-image;
+        }
     </style>
     <!-- Library database Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -256,7 +261,6 @@
             loadPhotos(link);
         }
 
-        // FUNGSI BARU: Otomatis mendeteksi dan masuk ke dalam folder "Original File"
         async function getTargetFolderId(parentFolderId) {
             try {
                 const query = encodeURIComponent(`'${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
@@ -265,16 +269,15 @@
                 const data = await response.json();
 
                 if (data.files && data.files.length > 0) {
-                    // Cari apakah ada subfolder bernama "Original File"
                     const originalFolder = data.files.find(f => f.name.toLowerCase() === 'original file');
                     if (originalFolder) {
-                        return originalFolder.id; // Masuk ke dalam folder Original File
+                        return originalFolder.id;
                     }
                 }
             } catch (e) {
                 console.error("Gagal mendeteksi subfolder:", e);
             }
-            return parentFolderId; // Jika tidak ada subfolder, gunakan folder utama
+            return parentFolderId;
         }
 
         async function loadPhotos(link) {
@@ -285,7 +288,6 @@
             appState.currentPage = 1; 
             
             try {
-                // Cek dan arahkan otomatis ke folder "Original File" jika ada di dalamnya
                 const folderId = await getTargetFolderId(rawFolderId);
 
                 let fetchedFiles = []; let nextPageToken = "";
@@ -300,7 +302,6 @@
                     
                     if (data.error) throw new Error(data.error.message);
                     if (data.files && data.files.length > 0) {
-                        // Filter hanya mengambil file gambar (mengabaikan folder lain jika ada)
                         const imageFiles = data.files.filter(f => f.mimeType && f.mimeType.startsWith('image/'));
                         fetchedFiles = fetchedFiles.concat(imageFiles);
                     }
