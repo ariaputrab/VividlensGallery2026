@@ -43,8 +43,8 @@
 
     <main id="clientView" class="max-w-6xl mx-auto px-4 py-8 flex-grow w-full">
         
-        <!-- INFORMASI DETAIL KLIEN -->
-        <div id="clientInfoSection" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <!-- INFORMASI DETAIL KLIEN + PROGRESS BAR KUOTA -->
+        <div id="clientInfoSection" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mb-6 grid grid-cols-1 md:grid-cols-4 gap-6">
             <div>
                 <p class="text-xs text-slate-400 font-bold uppercase">Nama Klien</p>
                 <p id="infoNama" class="font-semibold text-slate-800">-</p>
@@ -58,8 +58,15 @@
                 <p id="infoTanggal" class="font-semibold text-slate-800">-</p>
             </div>
             <div>
-                <p class="text-xs text-slate-400 font-bold uppercase">Kuota Foto</p>
-                <p id="infoKuota" class="font-semibold text-slate-800">-</p>
+                <div class="flex justify-between items-center">
+                    <p class="text-xs text-slate-400 font-bold uppercase">Kuota Foto</p>
+                    <p id="infoKuotaText" class="text-xs font-bold text-slate-700">-</p>
+                </div>
+                <p id="infoKuota" class="font-semibold text-slate-800 mb-2">-</p>
+                <!-- Visual Progress Bar Kuota -->
+                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                    <div id="quotaProgressBar" class="bg-blue-600 h-full w-0 transition-all duration-300"></div>
+                </div>
             </div>
         </div>
 
@@ -92,7 +99,6 @@
             <p id="loadingText" class="text-slate-700 font-bold mb-2">Memuat foto Anda...</p>
             <p id="loadingSubText" class="text-xs text-slate-400 mb-4">Menghubungkan ke Google Drive</p>
             
-            <!-- Progress Bar Container -->
             <div class="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden shadow-inner">
                 <div id="progressBar" class="bg-slate-900 h-full w-0 transition-all duration-300"></div>
             </div>
@@ -141,9 +147,35 @@
                     <p class="text-xs text-slate-500 hidden md:block">Kirim daftar ini ke tim kami</p>
                 </div>
             </div>
-            <button onclick="copyToClipboard()" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition flex items-center gap-2 shadow-lg">
-                <i class="fa-brands fa-whatsapp text-xl"></i> <span class="hidden md:inline">Salin Format WhatsApp</span><span class="md:hidden">Salin List</span>
+            <button onclick="openConfirmationModal()" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition flex items-center gap-2 shadow-lg">
+                <i class="fa-brands fa-whatsapp text-xl"></i> <span class="hidden md:inline">Kirim ke WhatsApp</span><span class="md:hidden">Kirim</span>
             </button>
+        </div>
+    </div>
+
+    <!-- POPUP KONFIRMASI / RINGKASAN PILIHAN -->
+    <div id="confirmationModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-clipboard-check text-green-600 mr-2"></i> Konfirmasi Pilihan Foto</h3>
+                <button onclick="closeConfirmationModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 mb-3">Berikut adalah daftar foto yang telah Anda pilih. Pastikan sudah sesuai sebelum dikirim ke tim kami melalui WhatsApp:</p>
+            
+            <div id="confirmationListContainer" class="bg-slate-50 rounded-xl p-4 border border-slate-200 overflow-y-auto flex-grow text-xs font-mono text-slate-700 space-y-1 mb-4 max-h-60">
+                <!-- List nama file foto muncul disini -->
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="closeConfirmationModal()" class="w-1/2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition text-sm">
+                    Kembali Memilih
+                </button>
+                <button onclick="confirmAndSendWhatsApp()" class="w-1/2 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-lg">
+                    <i class="fa-brands fa-whatsapp text-lg"></i> Ya, Salin & Kirim
+                </button>
+            </div>
         </div>
     </div>
 
@@ -235,6 +267,8 @@
                             document.getElementById('actionLimitText').textContent = `/ ${appState.limit}`;
                         }
 
+                        updateQuotaVisual();
+
                         const btnDownloadAll = document.getElementById('btnDownloadAll');
                         if (btnDownloadAll) btnDownloadAll.href = data.drive_link;
 
@@ -263,6 +297,35 @@
             alertIcon.className = type === 'success' ? "fa-solid fa-circle-check text-green-400 text-lg" : "fa-solid fa-triangle-exclamation text-red-400 text-lg";
             alertBox.classList.remove('-translate-y-32', 'opacity-0');
             setTimeout(() => alertBox.classList.add('-translate-y-32', 'opacity-0'), 3000);
+        }
+
+        function updateQuotaVisual() {
+            const count = appState.selectedIds.size;
+            const limit = appState.limit;
+            const quotaText = document.getElementById('infoKuotaText');
+            const quotaBar = document.getElementById('quotaProgressBar');
+
+            if (limit > 0) {
+                quotaText.textContent = `${count} / ${limit} Terpilih`;
+                const percentage = Math.min(Math.round((count / limit) * 100), 100);
+                quotaBar.style.width = `${percentage}%`;
+
+                if (count > limit) {
+                    quotaBar.className = "bg-red-600 h-full transition-all duration-300";
+                    quotaText.className = "text-xs font-bold text-red-600";
+                } else if (count === limit) {
+                    quotaBar.className = "bg-green-600 h-full transition-all duration-300";
+                    quotaText.className = "text-xs font-bold text-green-600";
+                } else {
+                    quotaBar.className = "bg-blue-600 h-full transition-all duration-300";
+                    quotaText.className = "text-xs font-bold text-slate-700";
+                }
+            } else {
+                quotaText.textContent = `${count} Foto (Tanpa Batas)`;
+                quotaBar.style.width = "100%";
+                quotaBar.className = "bg-slate-900 h-full transition-all duration-300";
+                quotaText.className = "text-xs font-bold text-slate-700";
+            }
         }
 
         function extractFolderId(url) {
@@ -489,6 +552,7 @@
                         appState.selectedIds.add(id);
                     });
                     updateActionBar();
+                    updateQuotaVisual();
                 }
             } catch (e) {
                 console.error("Gagal membaca data tersimpan dari browser:", e);
@@ -508,6 +572,7 @@
             }
 
             saveSelectionsToLocalStorage();
+            updateQuotaVisual();
 
             const cardElement = document.getElementById(`card-${id}`);
             if (cardElement) {
@@ -538,6 +603,7 @@
             }
             
             saveSelectionsToLocalStorage();
+            updateQuotaVisual();
             
             currentPhotos.forEach(p => {
                 const cardElement = document.getElementById(`card-${p.id}`);
@@ -561,9 +627,38 @@
             else { bar.classList.add('translate-y-full'); }
         }
 
-        async function copyToClipboard() {
+        // FUNGSI KONFIRMASI & KIRIM WHATSAPP
+        function openConfirmationModal() {
             if (appState.selectedIds.size === 0) return;
+
+            let allPhotosFlat = [];
+            Object.values(appState.foldersCache).forEach(folderData => {
+                if(folderData.photos) allPhotosFlat = allPhotosFlat.concat(folderData.photos);
+            });
+
+            const selectedNames = allPhotosFlat
+                .filter(p => appState.selectedIds.has(p.id))
+                .map(p => p.name.replace(/\.[^/.]+$/, ""));
+
+            const container = document.getElementById('confirmationListContainer');
+            container.innerHTML = '';
             
+            selectedNames.forEach((name, idx) => {
+                const item = document.createElement('div');
+                item.textContent = `${idx + 1}. ${name}`;
+                container.appendChild(item);
+            });
+
+            document.getElementById('confirmationModal').classList.remove('hidden');
+        }
+
+        function closeConfirmationModal() {
+            document.getElementById('confirmationModal').classList.add('hidden');
+        }
+
+        async function confirmAndSendWhatsApp() {
+            closeConfirmationModal();
+
             let allPhotosFlat = [];
             Object.values(appState.foldersCache).forEach(folderData => {
                 if(folderData.photos) allPhotosFlat = allPhotosFlat.concat(folderData.photos);
