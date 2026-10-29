@@ -128,15 +128,13 @@
                 </div>
             </div>
 
-            <!-- FITUR BARU: FILTER & SEARCH BAR (Hanya muncul saat di dalam folder foto) -->
+            <!-- FILTER & SEARCH BAR -->
             <div id="filterSearchSection" class="hidden flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                <!-- Tab Filter -->
                 <div class="flex gap-1.5 bg-slate-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
                     <button onclick="setFilter('all')" id="filterBtn-all" class="px-4 py-2 text-xs font-bold rounded-lg transition bg-white text-slate-900 shadow-sm whitespace-nowrap">Semua</button>
                     <button onclick="setFilter('selected')" id="filterBtn-selected" class="px-4 py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900 whitespace-nowrap">Sudah Dipilih</button>
                     <button onclick="setFilter('unselected')" id="filterBtn-unselected" class="px-4 py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900 whitespace-nowrap">Belum Dipilih</button>
                 </div>
-                <!-- Search Bar -->
                 <div class="relative w-full sm:w-72">
                     <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                         <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs"></i>
@@ -195,32 +193,39 @@
         </div>
     </div>
 
-    <!-- LIGHTBOX / ZOOM MODAL -->
-    <div id="lightboxModal" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[100] hidden flex flex-col justify-center items-center opacity-0 transition-opacity duration-300">
-        <div class="absolute top-0 left-0 w-full p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent z-10">
-            <p id="lightboxTitle" class="text-white text-sm md:text-base font-medium drop-shadow-md truncate max-w-[70%]">Nama Foto</p>
-            <button onclick="closeLightbox()" class="text-white hover:text-slate-300 w-10 h-10 flex justify-center items-center rounded-full bg-black/20 hover:bg-black/40 transition">
-                <i class="fa-solid fa-xmark text-xl"></i>
-            </button>
-        </div>
-
-        <button onclick="changeLightboxImage(-1)" class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 text-white hover:text-slate-300 w-12 h-12 md:w-16 md:h-16 flex justify-center items-center rounded-full bg-black/20 hover:bg-black/40 transition z-10">
-            <i class="fa-solid fa-chevron-left text-2xl md:text-4xl"></i>
-        </button>
+    <!-- LIGHTBOX / ZOOM MODAL (DIPERBAIKI TAMPILANNYA UNTUK HP & LAPTOP) -->
+    <div id="lightboxModal" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[100] hidden flex flex-col justify-between items-center opacity-0 transition-opacity duration-300 py-4 md:py-6">
         
-        <button onclick="changeLightboxImage(1)" class="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 text-white hover:text-slate-300 w-12 h-12 md:w-16 md:h-16 flex justify-center items-center rounded-full bg-black/20 hover:bg-black/40 transition z-10">
-            <i class="fa-solid fa-chevron-right text-2xl md:text-4xl"></i>
-        </button>
-
-        <div class="w-full max-w-5xl px-4 md:px-12 h-[75vh] flex justify-center items-center mt-8">
-            <img id="lightboxImg" src="" alt="Preview" class="max-w-full max-h-full object-contain drop-shadow-2xl rounded-sm scale-95 transition-transform duration-300">
+        <!-- Header Atas (Judul & Tombol Close) -->
+        <div class="w-full max-w-5xl px-4 flex justify-between items-center z-10">
+            <p id="lightboxTitle" class="text-white text-xs md:text-sm font-medium drop-shadow-md truncate max-w-[80%]">Nama Foto</p>
+            <button onclick="closeLightbox()" class="text-white hover:text-slate-300 w-9 h-9 md:w-10 md:h-10 flex justify-center items-center rounded-full bg-white/10 hover:bg-white/20 transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
         </div>
 
-        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex gap-3 w-full max-w-md px-4 justify-center">
-            <button id="lightboxSelectBtn" onclick="toggleLightboxSelect()" class="px-6 py-3 bg-white text-slate-900 font-bold rounded-full transition shadow-2xl flex items-center gap-2 border-2 border-transparent hover:scale-105 text-sm md:text-base">
-                <i class="fa-regular fa-square text-slate-400"></i> Pilih Foto Ini
+        <!-- Area Gambar & Tombol Navigasi Kiri Kanan -->
+        <div class="relative w-full max-w-5xl px-4 md:px-16 flex-grow flex justify-center items-center my-2">
+            <!-- Tombol Kiri -->
+            <button onclick="changeLightboxImage(-1)" class="absolute left-2 md:left-4 text-white hover:text-slate-300 w-10 h-10 md:w-12 md:h-12 flex justify-center items-center rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm transition z-10 shadow-lg">
+                <i class="fa-solid fa-chevron-left text-lg md:text-xl"></i>
             </button>
-            <a id="lightboxDownloadBtn" target="_blank" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full transition shadow-2xl flex items-center gap-2 hover:scale-105 text-sm md:text-base cursor-pointer">
+            
+            <!-- Gambar Pratinjau -->
+            <img id="lightboxImg" src="" alt="Preview" class="max-w-full max-h-[65vh] md:max-h-[70vh] object-contain drop-shadow-2xl rounded-sm scale-95 transition-transform duration-300">
+
+            <!-- Tombol Kanan -->
+            <button onclick="changeLightboxImage(1)" class="absolute right-2 md:right-4 text-white hover:text-slate-300 w-10 h-10 md:w-12 md:h-12 flex justify-center items-center rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm transition z-10 shadow-lg">
+                <i class="fa-solid fa-chevron-right text-lg md:text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Tombol Aksi di Bawah (Pilih & Download) -->
+        <div class="z-10 flex gap-2.5 w-full max-w-sm px-4 justify-center">
+            <button id="lightboxSelectBtn" onclick="toggleLightboxSelect()" class="flex-1 py-2.5 md:py-3 bg-white text-slate-900 font-bold rounded-full transition shadow-xl flex items-center justify-center gap-2 border-2 border-transparent hover:scale-105 text-xs md:text-sm">
+                <i class="fa-regular fa-square text-slate-400"></i> Pilih Foto
+            </button>
+            <a id="lightboxDownloadBtn" target="_blank" class="px-5 py-2.5 md:py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full transition shadow-xl flex items-center justify-center gap-2 hover:scale-105 text-xs md:text-sm cursor-pointer">
                 <i class="fa-solid fa-download"></i> Download
             </a>
         </div>
@@ -483,7 +488,6 @@
             const btnSelectAll = document.getElementById('btnSelectAll');
             const filterSearchSection = document.getElementById('filterSearchSection');
 
-            // Tampilkan Filter & Search bar hanya jika ada foto di folder ini
             if (folderContent.photos.length > 0) {
                 filterSearchSection.classList.remove('hidden');
                 filterSearchSection.classList.add('flex');
@@ -491,7 +495,6 @@
                 filterSearchSection.classList.add('hidden');
             }
 
-            // Terapkan Filter & Search pada foto
             let filteredPhotos = folderContent.photos.filter(photo => {
                 const matchesSearch = photo.name.toLowerCase().includes(appState.currentSearchQuery);
                 const isSelected = appState.selectedIds.has(photo.id);
@@ -520,7 +523,6 @@
 
             const fragment = document.createDocumentFragment();
 
-            // Render Folder (Hanya tampil di filter 'all' dan tanpa keyword search agar tidak membingungkan)
             if (appState.currentFilter === 'all' && !appState.currentSearchQuery) {
                 folderContent.folders.forEach(folder => {
                     const folderCard = document.createElement('div');
@@ -540,7 +542,6 @@
                 });
             }
 
-            // Render Foto yang sudah difilter & search
             filteredPhotos.forEach((photo) => {
                 const card = document.createElement('div');
                 card.id = `card-${photo.id}`;
@@ -656,7 +657,6 @@
                 }
             }
 
-            // Jika sedang di tab filter 'Sudah/Belum Dipilih', render ulang agar langsung terfilter secara dinamis
             if (appState.currentFilter !== 'all') {
                 renderFolderContent(appState.foldersCache[appState.currentFolderId]);
             }
@@ -832,11 +832,11 @@
         function updateLightboxSelectBtn() {
             const btn = document.getElementById('lightboxSelectBtn');
             if (appState.selectedIds.has(currentPreviewId)) {
-                btn.innerHTML = '<i class="fa-solid fa-check-double text-slate-800 text-lg"></i> <span>Telah Dipilih</span>';
-                btn.className = "px-6 py-3 bg-white text-slate-900 font-bold rounded-full transition shadow-2xl flex items-center gap-2 border-4 border-slate-900 text-sm md:text-base";
+                btn.innerHTML = '<i class="fa-solid fa-check-double text-slate-800 text-base"></i> <span>Telah Dipilih</span>';
+                btn.className = "flex-1 py-2.5 md:py-3 bg-white text-slate-900 font-bold rounded-full transition shadow-xl flex items-center justify-center gap-2 border-2 border-slate-900 text-xs md:text-sm";
             } else {
-                btn.innerHTML = '<i class="fa-regular fa-square text-slate-400 text-lg"></i> <span class="text-slate-700">Pilih Foto Ini</span>';
-                btn.className = "px-6 py-3 bg-white text-slate-900 font-bold rounded-full transition shadow-2xl flex items-center gap-2 border-4 border-transparent hover:scale-105 text-sm md:text-base";
+                btn.innerHTML = '<i class="fa-regular fa-square text-slate-400 text-base"></i> <span class="text-slate-700">Pilih Foto Ini</span>';
+                btn.className = "flex-1 py-2.5 md:py-3 bg-white text-slate-900 font-bold rounded-full transition shadow-xl flex items-center justify-center gap-2 border-2 border-transparent hover:scale-105 text-xs md:text-sm";
             }
         }
         
