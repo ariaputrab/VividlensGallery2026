@@ -18,6 +18,8 @@
         .selected-overlay { opacity: 0; transition: opacity 0.1s ease; }
         .photo-card.selected .selected-overlay { opacity: 1; }
         .photo-card.selected img { transform: scale(0.95); border-radius: 0.5rem; }
+        .folder-card { transition: all 0.2s ease; }
+        .folder-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); }
     </style>
     <!-- Library database Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -84,30 +86,45 @@
             </div>
         </div>
 
-        <div id="loadingState" class="hidden flex-col items-center justify-center py-16">
+        <!-- LOADING STATE DENGAN PROGRESS BAR -->
+        <div id="loadingState" class="hidden flex-col items-center justify-center py-16 max-w-md mx-auto text-center">
             <i class="fa-solid fa-circle-notch fa-spin text-4xl text-slate-800 mb-4"></i>
-            <p id="loadingText" class="text-slate-500 font-medium">Menarik foto beresolusi tinggi...</p>
+            <p id="loadingText" class="text-slate-700 font-bold mb-2">Memuat foto Anda...</p>
+            <p id="loadingSubText" class="text-xs text-slate-400 mb-4">Menghubungkan ke Google Drive</p>
+            
+            <!-- Progress Bar Container -->
+            <div class="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden shadow-inner">
+                <div id="progressBar" class="bg-slate-900 h-full w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <!-- BREADCRUMB / NAVIGASI FOLDER -->
+        <div id="navigationBar" class="hidden flex items-center gap-2 mb-6 text-sm">
+            <button onclick="navigateToRoot()" class="text-slate-500 hover:text-slate-900 font-medium flex items-center gap-1.5 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm transition">
+                <i class="fa-solid fa-house"></i> Utama
+            </button>
+            <span id="breadcrumbSeparator" class="text-slate-300 hidden"><i class="fa-solid fa-chevron-right text-xs"></i></span>
+            <span id="breadcrumbCurrent" class="font-bold text-slate-800 bg-slate-100 px-4 py-2 rounded-xl hidden"></span>
         </div>
 
         <div id="galleryContainer" class="hidden">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4 border-b border-slate-200 pb-4">
                 <div>
-                    <h3 class="font-bold text-xl text-slate-800">Koleksi Foto</h3>
-                    <p class="text-sm text-slate-500">Klik foto untuk memilih. Klik <i class="fa-solid fa-magnifying-glass mx-1"></i> untuk memperbesar.</p>
+                    <h3 id="galleryTitle" class="font-bold text-xl text-slate-800">Daftar Folder / Sesi</h3>
+                    <p id="gallerySubtitle" class="text-sm text-slate-500">Pilih folder untuk melihat foto di dalamnya.</p>
                 </div>
                 <div class="flex gap-2 w-full sm:w-auto">
-                    <!-- TOMBOL DOWNLOAD ALL FILE MASTER -->
                     <a id="btnDownloadAll" target="_blank" class="text-sm bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-bold transition flex items-center gap-2 shadow-sm">
                         <i class="fa-solid fa-cloud-arrow-down"></i> Download Semua Foto
                     </a>
-                    <button id="btnSelectAll" onclick="selectAll()" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-lg font-medium transition flex items-center gap-2">
+                    <button id="btnSelectAll" onclick="selectAll()" class="hidden text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-lg font-medium transition items-center gap-2">
                         <i class="fa-solid fa-check-double"></i> Pilih Semua
                     </button>
                 </div>
             </div>
             
-            <div id="photoGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 mb-8"></div>
-            <div id="paginationContainer" class="flex justify-center items-center gap-3 mt-10 pb-8 hidden"></div>
+            <!-- GRID UTAMA -->
+            <div id="contentGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 mb-8"></div>
         </div>
     </main>
 
@@ -151,7 +168,6 @@
             <img id="lightboxImg" src="" alt="Preview" class="max-w-full max-h-full object-contain drop-shadow-2xl rounded-sm scale-95 transition-transform duration-300">
         </div>
 
-        <!-- TOMBOL AKSI DI BAWAH PREVIEW (Pilih & Download Satuan) -->
         <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex gap-3 w-full max-w-md px-4 justify-center">
             <button id="lightboxSelectBtn" onclick="toggleLightboxSelect()" class="px-6 py-3 bg-white text-slate-900 font-bold rounded-full transition shadow-2xl flex items-center gap-2 border-2 border-transparent hover:scale-105 text-sm md:text-base">
                 <i class="fa-regular fa-square text-slate-400"></i> Pilih Foto Ini
@@ -168,8 +184,16 @@
     </div>
 
     <script>
-        const ITEMS_PER_PAGE = 99999; 
-        let appState = { photos: [], selectedIds: new Set(), currentPage: 1, limit: 0, clientData: null };
+        let appState = { 
+            rootFolderId: "", 
+            currentFolderId: "", 
+            currentFolderName: "",
+            foldersCache: {}, 
+            selectedIds: new Set(), 
+            limit: 0, 
+            clientData: null,
+            currentPhotosInView: [] 
+        };
         let supabaseClient;
         let currentSlug = "";
 
@@ -191,8 +215,7 @@
             
             if (currentSlug && currentSlug !== 'index.html' && currentSlug !== 'admin' && currentSlug !== 'admin.html') {
                 document.getElementById('inputSection').classList.add('hidden');
-                showLoading(true);
-                document.getElementById('loadingText').textContent = "Mencari data gallery client...";
+                showLoading(true, "Mencari data gallery client...", 20);
 
                 try {
                     const { data, error } = await supabaseClient.from('clients').select('*').eq('slug', currentSlug).single();
@@ -210,13 +233,12 @@
                         
                         if(appState.limit > 0) {
                             document.getElementById('actionLimitText').textContent = `/ ${appState.limit}`;
-                            document.getElementById('btnSelectAll').classList.add('hidden');
                         }
 
                         const btnDownloadAll = document.getElementById('btnDownloadAll');
                         if (btnDownloadAll) btnDownloadAll.href = data.drive_link;
 
-                        loadPhotos(data.drive_link);
+                        initializeDriveExplorer(data.drive_link);
                     } else {
                         showLoading(false);
                         document.getElementById('inputSection').classList.remove('hidden');
@@ -253,98 +275,137 @@
         function loadFromDriveManual() {
             const link = document.getElementById('driveLink').value.trim();
             if (!link) return showAlert('Harap masukkan link folder Google Drive.', 'error');
-            loadPhotos(link);
+            initializeDriveExplorer(link);
         }
 
-        async function getTargetFolderId(parentFolderId) {
-            try {
-                const query = encodeURIComponent(`'${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-                let apiUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&key=${CONFIG_APP.googleApiKey}`;
-                const response = await fetch(apiUrl);
-                const data = await response.json();
-
-                if (data.files && data.files.length > 0) {
-                    const originalFolder = data.files.find(f => f.name.toLowerCase() === 'original file');
-                    if (originalFolder) {
-                        return originalFolder.id;
-                    }
-                }
-            } catch (e) {
-                console.error("Gagal mendeteksi subfolder:", e);
-            }
-            return parentFolderId;
-        }
-
-        async function loadPhotos(link) {
+        async function initializeDriveExplorer(link) {
             const rawFolderId = extractFolderId(link);
             if (!rawFolderId) return showAlert('Link tidak valid. Pastikan formatnya benar.', 'error');
 
-            showLoading(true);
-            appState.currentPage = 1; 
-            
-            try {
-                const folderId = await getTargetFolderId(rawFolderId);
+            appState.rootFolderId = rawFolderId;
+            loadSavedSelections();
+            openFolder(rawFolderId, "Utama");
+        }
 
-                let fetchedFiles = []; let nextPageToken = "";
-                const query = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-                
-                do {
-                    let apiUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType)&key=${CONFIG_APP.googleApiKey}&pageSize=1000`;
-                    if (nextPageToken) apiUrl += `&pageToken=${nextPageToken}`;
-                    
-                    const response = await fetch(apiUrl);
-                    const data = await response.json();
-                    
-                    if (data.error) throw new Error(data.error.message);
-                    if (data.files && data.files.length > 0) {
-                        const imageFiles = data.files.filter(f => f.mimeType && f.mimeType.startsWith('image/'));
-                        fetchedFiles = fetchedFiles.concat(imageFiles);
-                    }
-                    
-                    nextPageToken = data.nextPageToken;
-                    if (nextPageToken) document.getElementById('loadingText').textContent = `Menarik foto... (${fetchedFiles.length} dimuat)`;
-                } while (nextPageToken);
+        async function openFolder(folderId, folderName) {
+            showLoading(true, `Membuka folder "${folderName}"...`, 40);
+            appState.currentFolderId = folderId;
+            appState.currentFolderName = folderName;
 
-                if (fetchedFiles.length > 0) {
-                    appState.photos = fetchedFiles.map(file => {
-                        // Mengganti ukuran thumbnail dan memaksa server Google Drive merender ulang orientasi EXIF yang benar
-                        let hdThumb = file.thumbnailLink ? file.thumbnailLink.replace(/=s\d+/, '=s800') : '';
-                        return { id: file.id, name: file.name, url: hdThumb };
-                    });
+            const navBar = document.getElementById('navigationBar');
+            const separator = document.getElementById('breadcrumbSeparator');
+            const currentBreadcrumb = document.getElementById('breadcrumbCurrent');
 
-                    loadSavedSelections();
-                    renderGallery();
-                    showAlert(`${appState.photos.length} foto siap dipilih!`, 'success');
-                } else {
-                    showAlert('Folder kosong atau hak akses belum di-set Publik.', 'error');
+            if (folderId === appState.rootFolderId) {
+                navBar.classList.add('hidden');
+            } else {
+                navBar.classList.remove('hidden');
+                separator.classList.remove('hidden');
+                currentBreadcrumb.classList.remove('hidden');
+                currentBreadcrumb.textContent = folderName;
+            }
+
+            if (appState.foldersCache[folderId]) {
+                showLoading(true, "Menyiapkan galeri...", 90);
+                setTimeout(() => {
+                    renderFolderContent(appState.foldersCache[folderId]);
                     showLoading(false);
+                }, 300);
+                return;
+            }
+
+            try {
+                showLoading(true, "Mengambil data dari Google Drive...", 60);
+                const query = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+                let apiUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,thumbnailLink,mimeType)&key=${CONFIG_APP.googleApiKey}&pageSize=1000`;
+                
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error.message);
+
+                let folders = [];
+                let photos = [];
+
+                if (data.files && data.files.length > 0) {
+                    data.files.forEach(file => {
+                        if (file.mimeType === 'application/vnd.google-apps.folder') {
+                            folders.push({ id: file.id, name: file.name });
+                        } else if (file.mimeType && file.mimeType.startsWith('image/')) {
+                            let hdThumb = file.thumbnailLink ? file.thumbnailLink.replace(/=s\d+/, '=s800') : '';
+                            photos.push({ id: file.id, name: file.name, url: hdThumb });
+                        }
+                    });
                 }
+
+                folders.sort((a, b) => a.name.localeCompare(b.name));
+                photos.sort((a, b) => a.name.localeCompare(b.name));
+
+                const folderContent = { folders, photos };
+                appState.foldersCache[folderId] = folderContent;
+
+                showLoading(true, "Memproses tampilan foto...", 100);
+                setTimeout(() => {
+                    renderFolderContent(folderContent);
+                    showLoading(false);
+                }, 300);
             } catch (error) {
-                showAlert('Gagal mengambil data. Pastikan link Google Drive diset ke Publik.', 'error');
+                showAlert('Gagal mengambil isi folder dari Google Drive.', 'error');
                 showLoading(false);
             }
         }
 
-        function showLoading(show) {
-            document.getElementById('loadingState').classList.toggle('hidden', !show);
-            document.getElementById('galleryContainer').classList.toggle('hidden', show);
-            document.getElementById('photoGrid').innerHTML = '';
-            document.getElementById('loadingText').textContent = "Menarik foto beresolusi tinggi...";
-            updateActionBar();
+        function navigateToRoot() {
+            openFolder(appState.rootFolderId, "Utama");
         }
 
-        function renderGallery() {
+        function renderFolderContent({ folders, photos }) {
             showLoading(false);
-            const grid = document.getElementById('photoGrid'); 
+            const grid = document.getElementById('contentGrid');
             grid.innerHTML = '';
-            
-            const startIndex = (appState.currentPage - 1) * ITEMS_PER_PAGE;
-            const endIndex = startIndex + ITEMS_PER_PAGE;
-            const photosToShow = appState.photos.slice(startIndex, endIndex);
+            appState.currentPhotosInView = photos;
+
+            const titleEl = document.getElementById('galleryTitle');
+            const subtitleEl = document.getElementById('gallerySubtitle');
+            const btnSelectAll = document.getElementById('btnSelectAll');
+
+            if (folders.length > 0 && photos.length === 0) {
+                titleEl.textContent = appState.currentFolderId === appState.rootFolderId ? "Pilih Sesi / Kategori" : `Sesi: ${appState.currentFolderName}`;
+                subtitleEl.textContent = "Silakan klik salah satu folder di bawah ini.";
+                btnSelectAll.classList.add('hidden');
+            } else if (photos.length > 0) {
+                titleEl.textContent = appState.currentFolderId === appState.rootFolderId ? "Koleksi Foto" : `Sesi: ${appState.currentFolderName}`;
+                subtitleEl.textContent = `Menampilkan ${photos.length} foto. Klik foto untuk memilih.`;
+                if(appState.limit === 0) {
+                    btnSelectAll.classList.remove('hidden');
+                    btnSelectAll.classList.add('flex');
+                }
+            } else {
+                titleEl.textContent = "Folder Kosong";
+                subtitleEl.textContent = "Tidak ada folder atau foto di dalam direktori ini.";
+                btnSelectAll.classList.add('hidden');
+            }
 
             const fragment = document.createDocumentFragment();
 
-            photosToShow.forEach((photo) => {
+            folders.forEach(folder => {
+                const folderCard = document.createElement('div');
+                folderCard.className = "folder-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm cursor-pointer flex flex-col justify-between items-center text-center hover:border-slate-800 transition";
+                folderCard.onclick = () => openFolder(folder.id, folder.name);
+
+                folderCard.innerHTML = `
+                    <div class="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-3xl mb-4 shadow-inner">
+                        <i class="fa-solid fa-folder-open"></i>
+                    </div>
+                    <div class="w-full">
+                        <h4 class="font-bold text-slate-800 text-base truncate mb-1" title="${folder.name}">${folder.name}</h4>
+                        <p class="text-xs text-slate-400 font-medium">Buka Sesi</p>
+                    </div>
+                `;
+                fragment.appendChild(folderCard);
+            });
+
+            photos.forEach((photo) => {
                 const card = document.createElement('div');
                 card.id = `card-${photo.id}`;
                 card.className = `photo-card relative cursor-pointer bg-slate-100 rounded-xl overflow-hidden aspect-square border-[3px] border-transparent shadow-sm hover:shadow-md ${appState.selectedIds.has(photo.id) ? 'selected border-slate-900' : ''}`;
@@ -390,41 +451,23 @@
             });
             
             grid.appendChild(fragment);
-            renderPagination();
         }
 
-        function renderPagination() {
-            const container = document.getElementById('paginationContainer');
-            const totalPages = Math.ceil(appState.photos.length / ITEMS_PER_PAGE);
-            if (totalPages <= 1) { container.classList.add('hidden'); return; }
-            container.classList.remove('hidden'); container.innerHTML = '';
+        function showLoading(show, message = "Memuat data...", progressPercent = 50) {
+            const loadingState = document.getElementById('loadingState');
+            const galleryContainer = document.getElementById('galleryContainer');
+            const loadingText = document.getElementById('loadingText');
+            const progressBar = document.getElementById('progressBar');
 
-            const prevBtn = document.createElement('button');
-            prevBtn.className = `px-5 py-2.5 rounded-xl font-medium transition flex items-center gap-2 ${appState.currentPage === 1 ? 'bg-slate-50 text-slate-300 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-sm'}`;
-            prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i> Prev';
-            prevBtn.disabled = appState.currentPage === 1;
-            prevBtn.onclick = () => changePage(appState.currentPage - 1);
-            container.appendChild(prevBtn);
+            loadingState.classList.toggle('hidden', !show);
+            galleryContainer.classList.toggle('hidden', show);
 
-            const indicator = document.createElement('span');
-            indicator.className = 'px-5 py-2.5 text-sm font-bold text-slate-700 bg-slate-100 rounded-xl';
-            indicator.textContent = `Halaman ${appState.currentPage} dari ${totalPages}`;
-            container.appendChild(indicator);
-
-            const nextBtn = document.createElement('button');
-            nextBtn.className = `px-5 py-2.5 rounded-xl font-medium transition flex items-center gap-2 ${appState.currentPage === totalPages ? 'bg-slate-50 text-slate-300 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-sm'}`;
-            nextBtn.innerHTML = 'Next <i class="fa-solid fa-chevron-right"></i>';
-            nextBtn.disabled = appState.currentPage === totalPages;
-            nextBtn.onclick = () => changePage(appState.currentPage + 1);
-            container.appendChild(nextBtn);
-        }
-
-        function changePage(newPage) {
-            const totalPages = Math.ceil(appState.photos.length / ITEMS_PER_PAGE);
-            if (newPage < 1 || newPage > totalPages) return;
-            appState.currentPage = newPage; 
-            renderGallery();
-            document.getElementById('galleryContainer').scrollIntoView({ behavior: 'smooth' });
+            if (show) {
+                loadingText.textContent = message;
+                progressBar.style.width = `${progressPercent}%`;
+                document.getElementById('contentGrid').innerHTML = '';
+            }
+            updateActionBar();
         }
 
         const STORAGE_KEY_PREFIX = "vividlens_selected_";
@@ -443,10 +486,7 @@
                     const parsedIds = JSON.parse(savedData);
                     appState.selectedIds.clear();
                     parsedIds.forEach(id => {
-                        const exists = appState.photos.some(p => p.id === id);
-                        if (exists) {
-                            appState.selectedIds.add(id);
-                        }
+                        appState.selectedIds.add(id);
                     });
                     updateActionBar();
                 }
@@ -486,9 +526,9 @@
 
         function selectAll() {
             if(appState.limit > 0) return; 
-            const startIndex = (appState.currentPage - 1) * ITEMS_PER_PAGE;
-            const endIndex = startIndex + ITEMS_PER_PAGE;
-            const currentPhotos = appState.photos.slice(startIndex, endIndex);
+            const currentPhotos = appState.currentPhotosInView;
+            if(currentPhotos.length === 0) return;
+
             const isAllCurrentSelected = currentPhotos.every(p => appState.selectedIds.has(p.id));
             
             if (isAllCurrentSelected) { 
@@ -498,7 +538,18 @@
             }
             
             saveSelectionsToLocalStorage();
-            renderGallery(); 
+            
+            currentPhotos.forEach(p => {
+                const cardElement = document.getElementById(`card-${p.id}`);
+                if(cardElement) {
+                    if (appState.selectedIds.has(p.id)) {
+                        cardElement.classList.add('selected', 'border-slate-900');
+                    } else {
+                        cardElement.classList.remove('selected', 'border-slate-900');
+                    }
+                }
+            });
+
             updateActionBar();
         }
 
@@ -513,7 +564,12 @@
         async function copyToClipboard() {
             if (appState.selectedIds.size === 0) return;
             
-            const selectedNames = appState.photos
+            let allPhotosFlat = [];
+            Object.values(appState.foldersCache).forEach(folderData => {
+                if(folderData.photos) allPhotosFlat = allPhotosFlat.concat(folderData.photos);
+            });
+
+            const selectedNames = allPhotosFlat
                 .filter(p => appState.selectedIds.has(p.id))
                 .map(p => p.name.replace(/\.[^/.]+$/, ""));
 
@@ -560,16 +616,16 @@
 
         function openLightbox(id) {
             currentPreviewId = id;
-            const index = appState.photos.findIndex(p => p.id === id);
+            const index = appState.currentPhotosInView.findIndex(p => p.id === id);
             if (index === -1) return;
             
-            const photo = appState.photos[index];
+            const photo = appState.currentPhotosInView[index];
             const modal = document.getElementById('lightboxModal');
             const img = document.getElementById('lightboxImg');
             const title = document.getElementById('lightboxTitle');
             
             img.src = photo.url.replace('=s800', '=s1600'); 
-            title.textContent = `Foto ${index + 1} dari ${appState.photos.length} - ${photo.name}`;
+            title.textContent = `Foto ${index + 1} dari ${appState.currentPhotosInView.length} - ${photo.name}`;
             
             updateLightboxSelectBtn();
 
@@ -600,11 +656,11 @@
         }
 
         function changeLightboxImage(direction) {
-            const index = appState.photos.findIndex(p => p.id === currentPreviewId);
+            const index = appState.currentPhotosInView.findIndex(p => p.id === currentPreviewId);
             let newIndex = index + direction;
-            if (newIndex < 0) newIndex = appState.photos.length - 1;
-            if (newIndex >= appState.photos.length) newIndex = 0;
-            openLightbox(appState.photos[newIndex].id);
+            if (newIndex < 0) newIndex = appState.currentPhotosInView.length - 1;
+            if (newIndex >= appState.currentPhotosInView.length) newIndex = 0;
+            openLightbox(appState.currentPhotosInView[newIndex].id);
         }
 
         function toggleLightboxSelect() {
