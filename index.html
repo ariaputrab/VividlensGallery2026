@@ -63,7 +63,6 @@
                     <p id="infoKuotaText" class="text-xs font-bold text-slate-700">-</p>
                 </div>
                 <p id="infoKuota" class="font-semibold text-slate-800 mb-2">-</p>
-                <!-- Visual Progress Bar Kuota -->
                 <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
                     <div id="quotaProgressBar" class="bg-blue-600 h-full w-0 transition-all duration-300"></div>
                 </div>
@@ -93,7 +92,7 @@
             </div>
         </div>
 
-        <!-- LOADING STATE DENGAN PROGRESS BAR -->
+        <!-- LOADING STATE -->
         <div id="loadingState" class="hidden flex-col items-center justify-center py-16 max-w-md mx-auto text-center">
             <i class="fa-solid fa-circle-notch fa-spin text-4xl text-slate-800 mb-4"></i>
             <p id="loadingText" class="text-slate-700 font-bold mb-2">Memuat foto Anda...</p>
@@ -114,18 +113,37 @@
         </div>
 
         <div id="galleryContainer" class="hidden">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4 border-b border-slate-200 pb-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 border-b border-slate-200 pb-4">
                 <div>
                     <h3 id="galleryTitle" class="font-bold text-xl text-slate-800">Daftar Folder / Sesi</h3>
                     <p id="gallerySubtitle" class="text-sm text-slate-500">Pilih folder untuk melihat foto di dalamnya.</p>
                 </div>
-                <div class="flex gap-2 w-full sm:w-auto">
+                <div class="flex flex-wrap gap-2 w-full md:w-auto">
                     <a id="btnDownloadAll" target="_blank" class="text-sm bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-bold transition flex items-center gap-2 shadow-sm">
-                        <i class="fa-solid fa-cloud-arrow-down"></i> Download Semua Foto
+                        <i class="fa-solid fa-cloud-arrow-down"></i> Download Semua
                     </a>
                     <button id="btnSelectAll" onclick="selectAll()" class="hidden text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-lg font-medium transition items-center gap-2">
                         <i class="fa-solid fa-check-double"></i> Pilih Semua
                     </button>
+                </div>
+            </div>
+
+            <!-- FITUR BARU: FILTER & SEARCH BAR (Hanya muncul saat di dalam folder foto) -->
+            <div id="filterSearchSection" class="hidden flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                <!-- Tab Filter -->
+                <div class="flex gap-1.5 bg-slate-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
+                    <button onclick="setFilter('all')" id="filterBtn-all" class="px-4 py-2 text-xs font-bold rounded-lg transition bg-white text-slate-900 shadow-sm whitespace-nowrap">Semua</button>
+                    <button onclick="setFilter('selected')" id="filterBtn-selected" class="px-4 py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900 whitespace-nowrap">Sudah Dipilih</button>
+                    <button onclick="setFilter('unselected')" id="filterBtn-unselected" class="px-4 py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900 whitespace-nowrap">Belum Dipilih</button>
+                </div>
+                <!-- Search Bar -->
+                <div class="relative w-full sm:w-72">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs"></i>
+                    </div>
+                    <input type="text" id="searchInput" oninput="handleSearch(this.value)" 
+                        class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-slate-800 outline-none transition" 
+                        placeholder="Cari nama/nomor foto...">
                 </div>
             </div>
             
@@ -153,7 +171,7 @@
         </div>
     </div>
 
-    <!-- POPUP KONFIRMASI / RINGKASAN PILIHAN -->
+    <!-- POPUP KONFIRMASI -->
     <div id="confirmationModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 flex flex-col max-h-[85vh]">
             <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
@@ -164,9 +182,7 @@
             </div>
             <p class="text-xs text-slate-500 mb-3">Berikut adalah daftar foto yang telah Anda pilih. Pastikan sudah sesuai sebelum dikirim ke tim kami melalui WhatsApp:</p>
             
-            <div id="confirmationListContainer" class="bg-slate-50 rounded-xl p-4 border border-slate-200 overflow-y-auto flex-grow text-xs font-mono text-slate-700 space-y-1 mb-4 max-h-60">
-                <!-- List nama file foto muncul disini -->
-            </div>
+            <div id="confirmationListContainer" class="bg-slate-50 rounded-xl p-4 border border-slate-200 overflow-y-auto flex-grow text-xs font-mono text-slate-700 space-y-1 mb-4 max-h-60"></div>
 
             <div class="flex gap-3">
                 <button onclick="closeConfirmationModal()" class="w-1/2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition text-sm">
@@ -224,7 +240,10 @@
             selectedIds: new Set(), 
             limit: 0, 
             clientData: null,
-            currentPhotosInView: [] 
+            currentFoldersInView: [],
+            currentPhotosInView: [],
+            currentFilter: 'all',
+            currentSearchQuery: ''
         };
         let supabaseClient;
         let currentSlug = "";
@@ -354,6 +373,10 @@
             showLoading(true, `Membuka folder "${folderName}"...`, 40);
             appState.currentFolderId = folderId;
             appState.currentFolderName = folderName;
+            appState.currentFilter = 'all';
+            appState.currentSearchQuery = '';
+            document.getElementById('searchInput').value = '';
+            updateFilterButtonsUI();
 
             const navBar = document.getElementById('navigationBar');
             const separator = document.getElementById('breadcrumbSeparator');
@@ -422,23 +445,69 @@
             openFolder(appState.rootFolderId, "Utama");
         }
 
-        function renderFolderContent({ folders, photos }) {
+        function setFilter(filterType) {
+            appState.currentFilter = filterType;
+            updateFilterButtonsUI();
+            renderFolderContent(appState.foldersCache[appState.currentFolderId]);
+        }
+
+        function updateFilterButtonsUI() {
+            ['all', 'selected', 'unselected'].forEach(type => {
+                const btn = document.getElementById(`filterBtn-${type}`);
+                if (!btn) return;
+                if (appState.currentFilter === type) {
+                    btn.className = "px-4 py-2 text-xs font-bold rounded-lg transition bg-white text-slate-900 shadow-sm whitespace-nowrap";
+                } else {
+                    btn.className = "px-4 py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900 whitespace-nowrap";
+                }
+            });
+        }
+
+        function handleSearch(query) {
+            appState.currentSearchQuery = query.toLowerCase().trim();
+            renderFolderContent(appState.foldersCache[appState.currentFolderId]);
+        }
+
+        function renderFolderContent(folderContent) {
+            if (!folderContent) return;
             showLoading(false);
+
+            appState.currentFoldersInView = folderContent.folders;
+            appState.currentPhotosInView = folderContent.photos;
+
             const grid = document.getElementById('contentGrid');
             grid.innerHTML = '';
-            appState.currentPhotosInView = photos;
 
             const titleEl = document.getElementById('galleryTitle');
             const subtitleEl = document.getElementById('gallerySubtitle');
             const btnSelectAll = document.getElementById('btnSelectAll');
+            const filterSearchSection = document.getElementById('filterSearchSection');
 
-            if (folders.length > 0 && photos.length === 0) {
+            // Tampilkan Filter & Search bar hanya jika ada foto di folder ini
+            if (folderContent.photos.length > 0) {
+                filterSearchSection.classList.remove('hidden');
+                filterSearchSection.classList.add('flex');
+            } else {
+                filterSearchSection.classList.add('hidden');
+            }
+
+            // Terapkan Filter & Search pada foto
+            let filteredPhotos = folderContent.photos.filter(photo => {
+                const matchesSearch = photo.name.toLowerCase().includes(appState.currentSearchQuery);
+                const isSelected = appState.selectedIds.has(photo.id);
+
+                if (appState.currentFilter === 'selected') return matchesSearch && isSelected;
+                if (appState.currentFilter === 'unselected') return matchesSearch && !isSelected;
+                return matchesSearch;
+            });
+
+            if (folderContent.folders.length > 0 && folderContent.photos.length === 0) {
                 titleEl.textContent = appState.currentFolderId === appState.rootFolderId ? "Pilih Sesi / Kategori" : `Sesi: ${appState.currentFolderName}`;
                 subtitleEl.textContent = "Silakan klik salah satu folder di bawah ini.";
                 btnSelectAll.classList.add('hidden');
-            } else if (photos.length > 0) {
+            } else if (folderContent.photos.length > 0) {
                 titleEl.textContent = appState.currentFolderId === appState.rootFolderId ? "Koleksi Foto" : `Sesi: ${appState.currentFolderName}`;
-                subtitleEl.textContent = `Menampilkan ${photos.length} foto. Klik foto untuk memilih.`;
+                subtitleEl.textContent = `Menampilkan ${filteredPhotos.length} dari ${folderContent.photos.length} foto.`;
                 if(appState.limit === 0) {
                     btnSelectAll.classList.remove('hidden');
                     btnSelectAll.classList.add('flex');
@@ -451,24 +520,28 @@
 
             const fragment = document.createDocumentFragment();
 
-            folders.forEach(folder => {
-                const folderCard = document.createElement('div');
-                folderCard.className = "folder-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm cursor-pointer flex flex-col justify-between items-center text-center hover:border-slate-800 transition";
-                folderCard.onclick = () => openFolder(folder.id, folder.name);
+            // Render Folder (Hanya tampil di filter 'all' dan tanpa keyword search agar tidak membingungkan)
+            if (appState.currentFilter === 'all' && !appState.currentSearchQuery) {
+                folderContent.folders.forEach(folder => {
+                    const folderCard = document.createElement('div');
+                    folderCard.className = "folder-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm cursor-pointer flex flex-col justify-between items-center text-center hover:border-slate-800 transition";
+                    folderCard.onclick = () => openFolder(folder.id, folder.name);
 
-                folderCard.innerHTML = `
-                    <div class="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-3xl mb-4 shadow-inner">
-                        <i class="fa-solid fa-folder-open"></i>
-                    </div>
-                    <div class="w-full">
-                        <h4 class="font-bold text-slate-800 text-base truncate mb-1" title="${folder.name}">${folder.name}</h4>
-                        <p class="text-xs text-slate-400 font-medium">Buka Sesi</p>
-                    </div>
-                `;
-                fragment.appendChild(folderCard);
-            });
+                    folderCard.innerHTML = `
+                        <div class="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-3xl mb-4 shadow-inner">
+                            <i class="fa-solid fa-folder-open"></i>
+                        </div>
+                        <div class="w-full">
+                            <h4 class="font-bold text-slate-800 text-base truncate mb-1" title="${folder.name}">${folder.name}</h4>
+                            <p class="text-xs text-slate-400 font-medium">Buka Sesi</p>
+                        </div>
+                    `;
+                    fragment.appendChild(folderCard);
+                });
+            }
 
-            photos.forEach((photo) => {
+            // Render Foto yang sudah difilter & search
+            filteredPhotos.forEach((photo) => {
                 const card = document.createElement('div');
                 card.id = `card-${photo.id}`;
                 card.className = `photo-card relative cursor-pointer bg-slate-100 rounded-xl overflow-hidden aspect-square border-[3px] border-transparent shadow-sm hover:shadow-md ${appState.selectedIds.has(photo.id) ? 'selected border-slate-900' : ''}`;
@@ -583,6 +656,11 @@
                 }
             }
 
+            // Jika sedang di tab filter 'Sudah/Belum Dipilih', render ulang agar langsung terfilter secara dinamis
+            if (appState.currentFilter !== 'all') {
+                renderFolderContent(appState.foldersCache[appState.currentFolderId]);
+            }
+
             updateActionBar();
             if(!document.getElementById('lightboxModal').classList.contains('hidden')) {
                 updateLightboxSelectBtn();
@@ -604,18 +682,7 @@
             
             saveSelectionsToLocalStorage();
             updateQuotaVisual();
-            
-            currentPhotos.forEach(p => {
-                const cardElement = document.getElementById(`card-${p.id}`);
-                if(cardElement) {
-                    if (appState.selectedIds.has(p.id)) {
-                        cardElement.classList.add('selected', 'border-slate-900');
-                    } else {
-                        cardElement.classList.remove('selected', 'border-slate-900');
-                    }
-                }
-            });
-
+            renderFolderContent(appState.foldersCache[appState.currentFolderId]);
             updateActionBar();
         }
 
@@ -627,7 +694,6 @@
             else { bar.classList.add('translate-y-full'); }
         }
 
-        // FUNGSI KONFIRMASI & KIRIM WHATSAPP
         function openConfirmationModal() {
             if (appState.selectedIds.size === 0) return;
 
